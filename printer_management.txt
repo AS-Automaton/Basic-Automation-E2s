@@ -1,0 +1,200 @@
+@name Printer Management
+@persist [FUNC VGUI]:table
+
+if(first()) {
+    local PrinterClass = "bricks_server_printer"
+    
+    local ScrSize = egpScrSize(owner())
+    local DSize = ScrSize / 4
+    
+    VGUI["frame", dframe] = dframe(1)
+    local Frame = VGUI["frame", dframe]
+        Frame:setSize(DSize)
+        Frame:makePopup()
+        Frame:setBackgroundBlur(1)
+        Frame:center()
+        Frame:setDeleteOnClose(0)
+        Frame:showCloseButton(0)
+        Frame:setVisible(0)
+        Frame:setColor(vec(25))
+        Frame:setTitle("Printer Management")
+    Frame:create()
+    
+    VGUI["list", dlistview] = dlistview(2, 1)
+    local List = VGUI["list", dlistview]
+        List:dock(_DOCK_FILL)
+        List:addColumn("Printers")
+        List:addColumn("Owner")
+        List:addColumn("Last Collected")
+        List:dockMargin(25, 25, 25, 100)
+    List:create()
+    
+    VGUI["toggle", dbutton] = dbutton(3, 1)
+    local Toggle = VGUI["toggle", dbutton]
+        Toggle:setSize(160, 36)
+        Toggle:setPos(DSize / 2 - vec2(295, -125))
+        Toggle:setColor(vec(13, 110, 253))
+        Toggle:setTextColor(vec(255), vec(255), vec(0), vec(255))
+        Toggle:setText("Auto Collect: Disabled")
+    Toggle:create() 
+    
+    VGUI["collect", dbutton] = dbutton(4, 1)
+    local Collect = VGUI["collect", dbutton]
+        Collect:setSize(160, 36)
+        Collect:setPos(DSize / 2 - vec2(80, -125))
+        Collect:setColor(vec(13, 110, 253))
+        Collect:setTextColor(vec(255), vec(255), vec(0), vec(255))
+        Collect:setText("Collect Money")
+    Collect:create() 
+    
+    VGUI["close", dbutton] = dbutton(5, 1)
+    local Close = VGUI["close", dbutton]
+        Close:setSize(160, 36)
+        Close:setPos(DSize / 2 - vec2(-125, -125))
+        Close:setColor(vec(13, 110, 253))
+        Close:setTextColor(vec(255), vec(255), vec(0), vec(255))
+        Close:setText("Close Menu")
+    Close:create() 
+    
+    FUNC = table(
+        "spawn-pos" = entity():pos(),
+        "auto-collect" = 0,
+        "printers" = array(),
+        "user" = entity():isWeldedTo(),
+        "collect-status" = 0,
+        "index" = 0
+    )
+    
+    local User = FUNC["user", entity]
+    User:setPos(entity():toWorld(vec(0, 0, 10)))
+    User:propFreeze(1)
+    User:setAng(ang(0, 0, 180))
+    User:wirelink():setNumber("Fire", 0)
+    
+    findByClass(PrinterClass)
+    local Arr = findToArray()
+
+    VGUI["list", dlistview]:clear()
+    foreach(K, V:entity = Arr) {
+        if(V:owningEnt() == owner()) {
+            FUNC["printers", array]:pushEntity(V)
+            VGUI["list", dlistview]:addLine(format("%s %s", V:getName(), K), owner():name(), "")
+        }    
+    }
+    VGUI["list", dlistview]:modify(array(owner()))
+    
+    runOnVgui(1)
+    runOnChat(1)
+}
+
+if(chatClk(owner()) & lastSaid():sub(1, 1) == "!") {
+    hideChat(1)
+    
+    local Str = lastSaid():replace("!", "")
+    local Args = Str:explode(" ")
+    
+    switch(Args[1, string]) {
+        case "printers",
+            local Visible = VGUI["frame", dframe]:isVisible(owner())
+            VGUI["frame", dframe]:setVisible(!Visible)
+            VGUI["frame", dframe]:modify(array(owner()))
+            break   
+    }
+}
+
+if(vguiClk()) {
+    switch(vguiClkPanelID()) {
+        case 5,
+            local Visible = VGUI["frame", dframe]:isVisible(owner())
+            VGUI["frame", dframe]:setVisible(!Visible)
+            VGUI["frame", dframe]:modify(array(owner()))  
+            break
+        case 2,
+            local ID = vguiClkValues()[1, number]
+            FUNC["printers", array]:removeEntity(ID)
+            
+            VGUI["list", dlistview]:clear()   
+            foreach(K, V:entity = FUNC["printers", array]) {
+                VGUI["list", dlistview]:addLine(format("%s %s", V:getName(), K), owner():name(), "")
+            }
+            VGUI["list", dlistview]:modify(array(owner()))
+            break
+        case 4,
+            local Tbl = FUNC["printers", array]
+            local User = FUNC["user", entity]
+            
+            VGUI["list", dlistview]:clear()   
+            foreach(K, V:entity = Tbl) {
+                VGUI["list", dlistview]:addLine(format("%s %s", V:getName(), K), owner():name(), round(curtime()))
+            }
+            VGUI["list", dlistview]:modify(array(owner()))
+            
+            FUNC["collect-status", number] = 1
+            timer("user", 1000)
+            break
+        case 3,
+            local Text = FUNC["auto-collect", number] ? "Auto Collect: Enabled" : "Auto Collect: Disabled"
+            
+            FUNC["auto-collect", number] = !FUNC["auto-collect", number]
+            
+            local Color = !FUNC["auto-collect", number] ? vec(13, 110, 253) : vec(80)
+            local TxColor = !FUNC["auto-collect", number] ? vec(255) : vec(100)
+            VGUI["collect", dbutton]:setEnabled(!FUNC["auto-collect", number])
+            VGUI["collect", dbutton]:setColor(Color)
+            VGUI["collect", dbutton]:setTextColor(TxColor, TxColor, vec(0), TxColor)
+            VGUI["collect", dbutton]:modify(array(owner()))
+            
+            VGUI["toggle", dbutton]:setText(Text)
+            VGUI["toggle", dbutton]:modify(array(owner()))
+            
+            if(FUNC["auto-collect", number]) {
+                timer("auto-collect", 1000)
+            } else {
+                stoptimer("auto-collect")   
+            }
+            break
+    }   
+}
+
+if(clk("user") & !FUNC["auto-collect", number]) {
+    local Tbl = FUNC["printers", array]
+    
+    if(FUNC["index", number] < Tbl:count()) {
+        FUNC["index", number] = FUNC["index", number] + 1
+    } else {
+        FUNC["index", number] = 1 
+        FUNC["collect-status", number] = 0 
+    }
+
+    local User = FUNC["user", entity]
+    local Index = FUNC["index", number]
+    
+    User:wirelink():setNumber("Fire", 1)
+    
+    User:setPos(Tbl[Index, entity]:toWorld(vec(0, 0, 35)))
+    
+    if(FUNC["collect-status", number]) {
+        timer("user", 1000)   
+    }
+}
+
+if(clk("auto-collect")) {
+    local Tbl = FUNC["printers", array]
+    
+    if(FUNC["index", number] < Tbl:count()) {
+        FUNC["index", number] = FUNC["index", number] + 1
+    } else {
+        FUNC["index", number] = 1 
+    }
+
+    local User = FUNC["user", entity]
+    local Index = FUNC["index", number]
+    
+    User:wirelink():setNumber("Fire", 1)
+    
+    User:setPos(Tbl[Index, entity]:toWorld(vec(0, 0, 35)))
+    
+    if(FUNC["auto-collect", number]) {
+        timer("auto-collect", 1000)   
+    }
+}
